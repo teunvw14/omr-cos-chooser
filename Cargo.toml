@@ -1,0 +1,34 @@
+[package]
+name = "cos-chooser"
+version = "0.1.0"
+edition = "2024"
+default-run = "price-options"
+
+[profile.release]
+debug = true
+
+[[bin]]
+name = "price-options"
+path = "src/bin/price_options.rs"
+
+[[bin]]
+name = "cos-restore-distr"
+path = "src/bin/cos_restore_density.rs"
+
+[[bin]]
+name = "show-gbm-paths"
+path = "src/bin/show_gbm_paths.rs"
+
+[[bin]]
+name = "show-merton-paths"
+path = "src/bin/show_merton_paths.rs"
+
+[dependencies]
+integrate = "0.3.1"
+ndarray = { version = "0.17.2", features = ["rayon"] }
+num-complex = "0.4.6"
+opener = "0.8.5"
+plotters = "0.3.7"
+rand = "0.10.3"
+rayon = "1.12.0"
+statrs = { version = "0.19.1", features = ["rand"] }
