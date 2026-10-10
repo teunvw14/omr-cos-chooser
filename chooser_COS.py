@@ -109,7 +109,7 @@ def cos_chooser_price(cf, S0, K, r, tau, tc, N, L):
         L=L,
     )
 
-    # Put with adjusted strike and maturity choice_time
+    # Put with adjusted strike and maturity tc
     adjusted_K = K * np.exp(-r * (tau - tc))
 
     _, put = cos_call_put_price(
