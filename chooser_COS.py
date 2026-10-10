@@ -164,16 +164,19 @@ def main():
     print("sigmaJ:", sigmaJ)
     print("sigma:", sigma)
     print("xiP:", xiP)
+    print("------------------------")
     print("COS parameters:")
     print("N:", N)
     print("L:", L)
+    print("------------------------")
     print("Option parameters:")    
     print("Maturity:", tau)
     print("Spot:", S0)
     print("Strike:", K)
+    print("------------------------")
     print("Call:", call)
     print("Put: ", put)
-
+    print("------------------------")
     tc = 5.0
     chooser = cos_chooser_price(
         cf =cf,
