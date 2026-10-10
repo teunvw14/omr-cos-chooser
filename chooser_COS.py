@@ -57,7 +57,7 @@ def cos_put_price(cf, S0, K, r, tau, N, L):
     # Log-moneyness
     x0 = np.log(S0 / K)
 
-    # Truncation domain
+    # Truncation domain - To be updated with use of cumulants?
     a = -L * np.sqrt(tau)
     b = L * np.sqrt(tau)
 
@@ -138,7 +138,7 @@ def main():
     sigmaJ = 0.3
     xiP = 0.7
 
-    N = 1000
+    N = 256
     L = 10
 
     cf = ChFForMertonModel(
