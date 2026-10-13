@@ -81,16 +81,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let r = 0.02;
     let sigma = 0.2;
     let tau = 1.0;
+    let jump_rate = 1.0;
+    let jump_mean = 0.0;
+    let jump_std = 0.1;
 
     // We now use the COS method
-    // We use X := ln S(t). It has known distribution:
-    // X ~ N(ln(S_0) + (\mu - \sigma^2)t, \sigma^2 t)
-    //
-    // The normal distribution has characteristic function:
-    // \Phi(u)_X = e^{i \mu u - \sigma^2 u^2 / 2}
-    //
-    // The European call payoff given X = ln S(t) is:
-    // (e^X - K)^+
+    // We use X := ln(S(t)/K). 
     
     fn call_payoff(k: f64) -> impl Fn(f64) -> f64 {
         move |s: f64| (s - k).max(0.0)
@@ -100,14 +96,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         move |x: f64| (f64::exp(x) - k).max(0.0)
     }
 
+    // Payoff for the variable transform X(t) = ln(S(t)/K), so S(t) = K * e^X
+    fn call_payoff_ln_s_k(k: f64) -> impl Fn(f64) -> f64 {
+        move |x: f64| (k * f64::exp(x) - k).max(0.0)
+    }
+
     fn straddle_payoff_ln(k: f64) -> impl Fn(f64) -> f64 {
         move |x: f64| (f64::exp(x) - k).abs()
     }
 
-    let mu_ln = f64::ln(S_0) + (r - sigma * sigma / 2.0)*tau;
-    let sigma_ln = sigma * f64::sqrt(tau);
-    let gbm_char_fun = |u| Complex::exp(i * mu_ln * u - sigma_ln * sigma_ln * u * u / 2.0);
-    // let merton_char_fun = |u| gbm_char_fun(u) * ;
+    let mu_gbm = r - 0.5*sigma*sigma;
+    let sigma = sigma;
+    let gbm_char_fun = |u| Complex::exp(i * u * mu_gbm * tau - 0.5*sigma*sigma * u*u * tau);
+    let mu_merton = r - 0.5*sigma*sigma - jump_rate * (f64::exp(0.5*jump_std*jump_std + jump_mean) - 1.0);
+    let merton_char_fun = |u| Complex::exp(i * u * mu_merton * tau - 0.5*sigma*sigma * u*u * tau) * Complex::exp(jump_rate*tau*(Complex::exp(i * jump_mean * u - 0.5 * jump_std*jump_std * u*u) - 1.0));
 
     // Note that [a, b] is the area over which you integrate of ln(S(t))
     let n = 256;
@@ -119,41 +121,57 @@ fn main() -> Result<(), Box<dyn Error>> {
     
     // analytic
     let analytical_value = bs_price_call(K, S_0, r, sigma, tau);
-    println!("Analytical option value: {analytical_value}");
+    println!("Analytical option value: {analytical_value:.4}");
     
-    // cos method
+    // cos method (GBM)
     let start = Instant::now();
-    let price = cos_price_derivative(call_payoff_ln(K), gbm_char_fun, r, tau, n, a, b, h);
+    let price = cos_price_derivative(call_payoff_ln_s_k(K), gbm_char_fun, r, tau, n, a, b, h);
     let duration = start.elapsed();
-    println!("Cos method Call option value: {price} (multi core {:?}s)", duration);
+    println!("COS method Call option value (GBM): {price:.4} (multi core {:?}s)", duration);
     
     // Monte Carlo pricing (GBM)
     let n_paths = 10_000_000;
-    let n_steps = 2;
+    let n_steps = 25;
     let start = Instant::now();
     let paths = gbm_generate_paths(S_0, r, sigma, tau, n_paths, n_steps);
+    let gbm_std = paths.slice(s![.., -1]).std(0.0);
     let price = mc_price(call_payoff(K), paths.view(), r, tau);
     let duration = start.elapsed();
-    println!("MC method Call option value: {price} (multi core {:?}s)", duration);
+    println!("MC method Call option value (GBM): {price:.4} (multi core {:?}s)", duration);
 
     // TODO: this should be a test
-    let paths_final_values = paths.slice(s![.., -1]);
-    let paths_mean = paths_final_values.ln().mean().unwrap();
-    let paths_var = paths_final_values.ln().var(0.0);
-    let paths_mean_ex = S_0.ln() + (r - 0.5 * sigma * sigma) * tau;
-    let paths_var_ex = sigma * sigma;
+    // let paths_final_values = paths.slice(s![.., -1]);
+    // let paths_mean = paths_final_values.ln().mean().unwrap();
+    // let paths_var = paths_final_values.ln().var(0.0);
+    // let paths_mean_ex = S_0.ln() + (r - 0.5 * sigma * sigma) * tau;
+    // let paths_var_ex = sigma * sigma;
     
-    println!("Paths mean: {paths_mean} (expected {paths_mean_ex}), paths var: {paths_var} (expected {paths_var_ex})");
+    // println!("Paths mean: {paths_mean} (expected {paths_mean_ex}), paths var: {paths_var} (expected {paths_var_ex})");
 
-    // Monte Carlo pricing (Merton Jump Process)
-    let n_paths = 10_000_000;
-    let n_steps = 2;
+    // Monte Carlo pricing (Merton)
+    let n_paths = 1_000_000;
+    let n_steps = 250; // There seems to be some sort of discretization error in step size!
     let start = Instant::now();
-    let paths = merton_generate_paths(S_0, r, sigma, 1.0, 0.0, 0.2, tau, n_paths, n_steps);
-    let price = mc_price(call_payoff(K), paths.view(), r, tau);
+    let adjusted_mu = r - 0.5*sigma*sigma - jump_rate * (f64::exp(0.5 * jump_std*jump_std + jump_mean) - 1.0);
+    let mut paths = merton_generate_paths(S_0, adjusted_mu, sigma, jump_rate, jump_mean, jump_std, tau, n_paths, n_steps);
+    let merton_std = paths.slice(s![.., -1]).std(0.0);
+    let merton_mean = paths.slice(s![.., -1]).mean().unwrap();
+    let price_mc = mc_price(call_payoff(K), paths.view(), r, tau);
     let duration = start.elapsed();
-    println!("MC method (Merton Jump) Call option value: {price} (multi core {:?}s)", duration);
+    println!("MC method Call option value (Merton): {price_mc:.4} (multi core {:?}s) ", duration);
 
+    // Monte Carlo Pricing (GBM-Moment-Matched-Merton)
+    paths = (gbm_std/merton_std) * (paths - merton_mean) + merton_mean;
+    let price = mc_price(call_payoff(K), paths.view(), r, tau);
+    println!("MC method Call option value (Moment-Matched-Merton): {price:.4}");
+
+    // cos method (Merton)
+    let start = Instant::now();
+    let price = cos_price_derivative(call_payoff_ln_s_k(K), merton_char_fun, r, tau, n, a, b, h);
+    let duration = start.elapsed();
+    println!("COS method Call option value (Merton): {price:.4} (multi core {:?}s)", duration);
+    let ratio = 100.0 * f64::abs(1.0 - price_mc / price);
+    println!("MC vs COS diff (Merton): {ratio:.2}%");
 
     /////////////////
     // Plots

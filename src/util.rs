@@ -1,4 +1,4 @@
-use statrs::distribution::{ContinuousCDF, Normal, Uniform};
+use statrs::{distribution::{ContinuousCDF, Normal, Uniform, Poisson}};
 use rand::distr::Distribution;
 use ndarray::{Array1, Array2, ArrayView2, s};
 
@@ -83,14 +83,12 @@ pub fn merton_generate_paths(S_0: f64, mu: f64, sigma: f64, jump_rate: f64, jump
     let dt = tau/(n_steps-1) as f64;
     let norm = Normal::new(0.0, 1.0).unwrap();
     let norm_jump = Normal::new(jump_mean, jump_std).unwrap();
-    let unif = Uniform::new(0.0, 1.0).unwrap();
+    let poiss = Poisson::new(dt * jump_rate).unwrap();
     let mut rng = rand::rng();
 
     for p in 0..n_paths {
         for i in 1..n_steps {
-            let jumps = if unif.sample(&mut rng) < dt * jump_rate {
-                1.0
-            } else { 0.0 };
+            let jumps: f64 = poiss.sample(&mut rng);
             X[(p, i)] = X[(p, i-1)] + mu * dt + sigma * dt.sqrt() * norm.sample(&mut rng) + jumps * norm_jump.sample(&mut rng);
         }
     }
