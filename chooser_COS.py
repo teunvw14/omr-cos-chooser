@@ -1,22 +1,6 @@
 
 import numpy as np
-
-
-def ChFForMertonModel(r, muJ, sigmaJ, sigma, xiP):
-
-    helpExp = np.exp(muJ + 0.5 * sigmaJ**2) - 1.0
-
-    def cf(tau):
-
-        return lambda u: np.exp(
-            1j * u * (r - xiP * helpExp - 0.5 * sigma**2) * tau
-            - 0.5 * sigma**2 * u**2 * tau
-            + xiP * tau
-            * (np.exp(1j * u * muJ - 0.5 * sigmaJ**2 * u**2) - 1.0)
-        )
-
-    return cf
-
+import cf
 
 
 def Chi_Psi(a, b, c, d, k):
@@ -53,7 +37,7 @@ def PutCoefficients(a, b, k):
     return H_k
 
 
-def cos_put_price(cf, S0, K, r, tau, N, L):
+def cos_put_price(phi, S0, K, r, tau, N, L):
     # Log-moneyness
     x0 = np.log(S0 / K)
 
@@ -69,7 +53,7 @@ def cos_put_price(cf, S0, K, r, tau, N, L):
     H_k = PutCoefficients(a, b, k)
 
     # COS expansion terms
-    temp = cf(u) * H_k
+    temp = phi(u, tau) * H_k
     temp[0] *= 0.5
 
     put = (
@@ -85,14 +69,14 @@ def cos_put_price(cf, S0, K, r, tau, N, L):
     return float(put)
 
 
-def cos_call_put_price(cf, S0, K, r, tau, N, L):
-    put = cos_put_price(cf, S0, K, r, tau, N, L)
+def cos_call_put_price(phi, S0, K, r, tau, N, L):
+    put = cos_put_price(phi, S0, K, r, tau, N, L)
 
     call = put + S0 - K * np.exp(-r * tau)
 
     return call, put
 
-def cos_chooser_price(cf, S0, K, r, tau, tc, N, L):
+def cos_chooser_price(phi, S0, K, r, tau, tc, N, L):
     if not 0.0 <= tc <= tau:
         raise ValueError(
             "choice_time must satisfy 0 <= choice_time <= tau."
@@ -100,7 +84,7 @@ def cos_chooser_price(cf, S0, K, r, tau, tc, N, L):
 
     # Call with strike K and final maturity tau
     call, _ = cos_call_put_price(
-        cf=cf(tau),
+        phi=phi,
         S0=S0,
         K=K,
         r=r,
@@ -113,7 +97,7 @@ def cos_chooser_price(cf, S0, K, r, tau, tc, N, L):
     adjusted_K = K * np.exp(-r * (tau - tc))
 
     _, put = cos_call_put_price(
-        cf=cf(tc),
+        phi=phi,
         S0=S0,
         K=adjusted_K,
         r=r,
@@ -141,16 +125,16 @@ def main():
     N = 256
     L = 10
 
-    cf = ChFForMertonModel(
+    phi_merton = cf.Merton(
         r,
-        muJ,
-        sigmaJ,
         sigma,
         xiP,
+        muJ,
+        sigmaJ,   
     )
 
     call, put = cos_call_put_price(
-        cf=cf(tau),
+        phi=phi_merton,
         S0=S0,
         K=K,
         r=r,
@@ -179,7 +163,7 @@ def main():
     print("------------------------")
     tc = 5.0
     chooser = cos_chooser_price(
-        cf =cf,
+        phi =phi_merton,
         S0=S0,
         K=K,
         r=r,
@@ -190,7 +174,64 @@ def main():
     )
     print("Choice time:", tc)
     print("Chooser:", chooser)
+#####################################################
 
+    xiP = 0.7
+    p1 = 0.4
+    alpha1 = 10.0
+    alpha2 = 5.0
 
+    phi_kou = cf.Kou(
+        r,
+        sigma,
+        xiP,
+        p1,
+        alpha1,
+        alpha2,
+    )
+
+    call, put = cos_call_put_price(
+            phi=phi_kou,
+            S0=S0,
+            K=K,
+            r=r,
+            tau=tau,
+            N=N,
+            L=L,
+    )
+    print("------------------------")
+    print("Kou model parameters:")
+    print("r:", r)    
+    print("sigma:", sigma)
+    print("xiP:", xiP)
+    print("p1:", p1)
+    print("alpha1:", alpha1)
+    print("alpha2:", alpha2)
+    print("------------------------")
+    print("COS parameters:")
+    print("N:", N)
+    print("L:", L)
+    print("------------------------")
+    print("Option parameters:")    
+    print("Maturity:", tau)
+    print("Spot:", S0)
+    print("Strike:", K)
+    print("------------------------")
+    print("Call:", call)
+    print("Put: ", put)
+    print("------------------------")
+    tc = 5.0
+    chooser = cos_chooser_price(
+        phi =phi_kou,
+        S0=S0,
+        K=K,
+        r=r,
+        tau=tau,
+        tc=tc,
+        N=N,
+        L=L,
+    )
+    print("Choice time:", tc)
+    print("Chooser:", chooser)
 if __name__ == "__main__":
     main()
