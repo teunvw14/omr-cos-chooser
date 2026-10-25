@@ -68,7 +68,7 @@ where
     }).reduce(|| 0.0, |a, b| a + b);
 
     let discount = f64::exp(-r * tau);
-
+    
     discount * result
 }
 
