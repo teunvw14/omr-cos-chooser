@@ -3,7 +3,7 @@ import numpy as np
 import cf
 
 
-def Chi_Psi(a, b, c, d, k):
+def chi_psi(a, b, c, d, k):
     omega = k * np.pi / (b - a)
 
     # Psi coefficients
@@ -26,11 +26,11 @@ def Chi_Psi(a, b, c, d, k):
     return chi, psi
 
 
-def PutCoefficients(a, b, k):
+def put_coeffs(a, b, k):
     c = a
     d = 0.0
 
-    chi, psi = Chi_Psi(a, b, c, d, k)
+    chi, psi = chi_psi(a, b, c, d, k)
 
     H_k = 2.0 / (b - a) * (psi - chi)
 
@@ -38,7 +38,6 @@ def PutCoefficients(a, b, k):
 
 
 def cos_put_price(phi, S0, K, r, tau, N, L):
-    # Log-moneyness
     x0 = np.log(S0 / K)
 
     # Truncation domain - To be updated with use of cumulants?
@@ -50,7 +49,7 @@ def cos_put_price(phi, S0, K, r, tau, N, L):
     u = k * np.pi / (b - a)
 
     # Put payoff coefficients
-    H_k = PutCoefficients(a, b, k)
+    H_k = put_coeffs(a, b, k)
 
     # COS expansion terms
     temp = phi(u, tau) * H_k
@@ -125,7 +124,7 @@ def main():
     N = 256
     L = 10
 
-    phi_merton = cf.Merton(
+    phi_merton = cf.merton(
         r,
         sigma,
         xiP,
@@ -181,7 +180,7 @@ def main():
     alpha1 = 10.0
     alpha2 = 5.0
 
-    phi_kou = cf.Kou(
+    phi_kou = cf.kou(
         r,
         sigma,
         xiP,

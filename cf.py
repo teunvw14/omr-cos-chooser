@@ -1,6 +1,6 @@
 import numpy as np
 
-def GBM(r, sigma, q=0):
+def gbm(r, sigma, q=0):
     mu = r - 0.5*sigma**2 - q
 
     def phi(u, tau):
@@ -8,7 +8,7 @@ def GBM(r, sigma, q=0):
 
     return phi
 
-def Merton(r, sigma, xiP, muJ, sigmaJ, q=0):
+def merton(r, sigma, xiP, muJ, sigmaJ, q=0):
     omega = xiP * (np.exp(0.5*sigmaJ**2 + muJ) - 1.0)
     mu    = r - 0.5*sigma**2 - q - omega
 
@@ -19,7 +19,7 @@ def Merton(r, sigma, xiP, muJ, sigmaJ, q=0):
 
     return phi
 
-def Kou(r, sigma, xiP, p1, alpha1, alpha2, q=0):
+def kou(r, sigma, xiP, p1, alpha1, alpha2, q=0):
     omega = xiP*(1.0 - p1*alpha1/(alpha1 - 1.0)
           - (1.0-p1)*alpha2/(alpha2 + 1.0)) # 1-p1 is p2
     mu    = r - 0.5*sigma**2 - q + omega   
