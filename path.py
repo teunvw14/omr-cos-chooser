@@ -10,7 +10,11 @@ def merton_values(
     times: list, # List of times. The last is maturity and the previous are choice times, example: [t1,t2,tau]
     n_paths,
     q=0.0,
+    rng = None
 ):
+    if rng is None:
+        rng = np.random.default_rng()
+
     omega = xiP * (
         np.exp(muJ + 0.5 * sigmaJ**2) - 1.0
     )
@@ -29,13 +33,13 @@ def merton_values(
 
         dt = t - previous_time
 
-        N = np.random.poisson(
+        N = rng.poisson(
             xiP * dt,
             size=n_paths,
         )
 
-        Z = np.random.randn(n_paths)
-        ZJ = np.random.randn(n_paths)
+        Z = rng.standard_normal(n_paths)
+        ZJ = rng.standard_normal(n_paths)
 
         X += (
             mu * dt
@@ -61,7 +65,11 @@ def kou_values(
     times,
     n_paths,
     q=0.0,
+    rng = None
 ):
+    if rng is None:
+        rng = np.random.default_rng()
+
     omega = xiP * (
         p1 * alpha1 / (alpha1 - 1.0)
         + (1.0 - p1) * alpha2 / (alpha2 + 1.0)
@@ -82,14 +90,14 @@ def kou_values(
 
         dt = t - previous_time
 
-        Z = np.random.randn(n_paths)
+        Z = rng.standard_normal(n_paths)
 
         dX = (
             mu * dt
             + sigma * np.sqrt(dt) * Z
         )
 
-        N = np.random.poisson(
+        N = rng.poisson(
             xiP * dt,
             size=n_paths,
         )
@@ -102,15 +110,15 @@ def kou_values(
 
             if n > 0:
 
-                U = np.random.rand(n)
+                U = rng.random(n)
 
                 jumps = np.where(
                     U < p1,
-                    np.random.exponential(
+                    rng.exponential(
                         1.0 / alpha1,
                         size=n,
                     ),
-                    -np.random.exponential(
+                    -rng.exponential(
                         1.0 / alpha2,
                         size=n,
                     ),
