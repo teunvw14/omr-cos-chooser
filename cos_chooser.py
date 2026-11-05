@@ -1,8 +1,8 @@
 import numpy as np
 from math import pi
 from scipy import optimize
-from numpy import exp, cos, sin, log
-from util import bs_price_call, bs_price_put
+from numpy import exp, cos, sin, log, sqrt
+from util import bs_price_call, bs_price_put, price_complex_chooser_gbm_analytic, N2_cdf
 import matplotlib.pyplot as plt
 
 # Calculate \chi_k
@@ -153,7 +153,8 @@ def price_complex_chooser_cos(cf_out, cf_C, cf_P, S0, r, K_C, K_P, T_C, T_P, tc,
     terms[0] *= 0.5
 
     discount = exp(-r * tc)
-    return discount * np.sum(terms) 
+    return discount * np.sum(terms)
+
 
 def price_simple_chooser_cos(cf_out, cf_in, S0, r, K, T, tc, N, a, b, a_in, b_in):
     x_0 = np.log(S0)
@@ -180,14 +181,14 @@ def bs_cf(r, sigma, tau):
 # Option value at ln(S) = x, using payoff coefficients V and the characteristic
 # function of the log of the asset
 def cos_value(x, cf, r, tau, V, a_in, b_in):
-    x = np.atleast_1d(x)
     N = len(V)
     omega = np.arange(N) * pi / (b_in - a_in)
-    psi = cf(omega)                                    # shape (N,)
-    M = np.exp(1j * np.outer(x - a_in, omega))         # shape (len(x), N)
-    terms = (psi * M).real * V                         # shape (len(x), N)
+    psi = cf(omega)
+    M = np.exp(1j * np.outer(x - a_in, omega))
+    terms = (psi * M).real * V
     terms[:, 0] *= 0.5
     return exp(-r * tau) * terms.sum(axis=1)
+
 
 # Find the point x^* = ln(S^*) where the value of the call and put are equal.
 def get_equality_point(a, b, cf_C, tau_C, V_C, a_C, b_C, 
@@ -205,7 +206,6 @@ def get_equality_point(a, b, cf_C, tau_C, V_C, a_C, b_C,
         return b
 
     return optimize.brentq(g, a, b)
-
 
 def plot_convergence_in_N():
     K = 100.0
@@ -319,26 +319,66 @@ def test_complex_chooser_cos_pricer_2():
     tc = 0.5
 
     # cos method parameters
-    a_in = X_0 - 10 * sigma * (T_max**0.5)
-    b_in = X_0 + 10 * sigma * (T_max**0.5)
     a = X_0 - 10 * sigma * (T_max**0.5)
     b = X_0 + 10 * sigma * (T_max**0.5)
     N = 64
-
     cf_C = bs_cf(r, sigma, T_C - tc)
     cf_P = bs_cf(r, sigma, T_P - tc)
     cf_out = bs_cf(r, sigma, tc)
 
-    price = price_complex_chooser_cos(cf_out, cf_C, cf_P, S_0, r, K_C, K_P, T_C, T_P, tc, N, a, b, a, b, a, b)
-    print(price)
+    K = 100
+    K_dists = np.arange(-100, 100, step=10)
+    prices = []
+    for K_dist in K_dists:
+        K_C = K - K_dist/2
+        K_P = K + K_dist/2
+        a_C = log(K_C) - 10 * sigma * (T_max**0.5)
+        b_C = log(K_C) + 10 * sigma * (T_max**0.5)
+        a_P = log(K_P) - 10 * sigma * (T_max**0.5)
+        b_P = log(K_P) + 10 * sigma * (T_max**0.5)
+        price = price_complex_chooser_cos(cf_out, cf_C, cf_P, S_0, r, K_C, K_P, T_C, T_P, tc, N, a, b, a_C, b_C, a_P, b_P)
+        prices.append(price)
+
+    plt.plot(K_dists, prices)
+    plt.show()
 
 
 def main():
     # plot_convergence_in_N()
-    test_equality_point()
-    # test_complex_chooser_cos_pricer_1()
+    # test_equality_point()
+    # test_complex_chooser_cos_pricer_2()
+    K_C = 105.0
+    K_P = 95.0
+    T_C = 1.0
+    T_P = 0.8
+    S_0 = 100.0
+    X_0 = log(S_0)
+    r = 0.02
+    sigma = 0.2
+    T_max = max(T_C, T_P)
+    tc = 0.5
 
+    # cos method parameters
+    a = X_0 - 10 * sigma * (T_max**0.5)
+    b = X_0 + 10 * sigma * (T_max**0.5)
+    Ns = np.array([2**k for k in range(2, 8)])
+    cf_C = bs_cf(r, sigma, T_C - tc)
+    cf_P = bs_cf(r, sigma, T_P - tc)
+    cf_out = bs_cf(r, sigma, tc)
+    a_C = log(K_C) - 10 * sigma * (T_max**0.5)
+    b_C = log(K_C) + 10 * sigma * (T_max**0.5)
+    a_P = log(K_P) - 10 * sigma * (T_max**0.5)
+    b_P = log(K_P) + 10 * sigma * (T_max**0.5)
 
+    price_a = price_complex_chooser_gbm_analytic(S_0, r, sigma, K_C, K_P, T_C, T_P, tc)
+    prices_cos = [price_complex_chooser_cos(cf_out, cf_C, cf_P, S_0, r, K_C, K_P, T_C, T_P, tc, N, a, b, a_C, b_C, a_P, b_P) 
+                  for N in Ns]
+    errs = np.abs(prices_cos - price_a)
+
+    print(prices_cos, Ns, errs)
+    plt.plot(Ns, errs)
+    plt.yscale('log')
+    plt.show()
 
 if __name__ == "__main__":
     main()
