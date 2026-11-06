@@ -5,3 +5,4 @@
 /img
 /.vscode
 /rust-version-archived/target/
+/__pycache__
