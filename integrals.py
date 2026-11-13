@@ -143,6 +143,8 @@ def build_Ic(
 
     return Ic
 
+
+
 def build_Is(
     omega,
     nu,
@@ -156,14 +158,10 @@ def build_Is(
     wk = omega[:, None]
     vn = nu[None, :]
 
-    Is = np.zeros(
-        (len(omega), len(nu))
-    )
+    Is = np.zeros((len(omega), len(nu)))
 
     # Generic case
-    mask_general = (
-        np.abs(wk - vn) > tol
-    )
+    mask_general = np.abs(wk - vn) > tol
 
     plus = (
         np.cos(
@@ -190,14 +188,11 @@ def build_Is(
     ) / (wk - vn)
 
     Is[mask_general] = (
-        -(plus + minus)
-        / (b - a)
+        (-plus - minus) / (b - a)
     )[mask_general]
 
     # Singular case
-    mask_singular = (
-        np.abs(wk - vn) <= tol
-    )
+    mask_singular = np.abs(wk - vn) <= tol
 
     rows, cols = np.where(mask_singular)
 
@@ -205,43 +200,31 @@ def build_Is(
 
         w = omega[k]
 
-        # Singular case: ω = ν = 0
         if abs(w) < tol:
-
             Is[k, n] = 0.0
 
-        # Singular case: ω = ν not 0
         else:
 
-            boundary = (
-                0.5
-                * (upper - lower)
-                * np.sin(
-                    w * (a - aprime)
-                )
+            constant = (
+                (upper - lower)
+                * np.sin(w * (a - aprime))
             )
 
             oscillatory = (
                 np.cos(
-                    2.0 * w * upper
+                    2.0 * w * lower
                     - w * (a + aprime)
                 )
                 -
                 np.cos(
-                    2.0 * w * lower
+                    2.0 * w * upper
                     - w * (a + aprime)
                 )
-            ) / (
-                4.0 * w
-            )
+            ) / (2.0 * w)
 
             Is[k, n] = (
-                2.0
-                / (b - a)
-                * (
-                    boundary
-                    - oscillatory
-                )
-            )
+                constant + oscillatory
+            ) / (b - a)
 
     return Is
+

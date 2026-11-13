@@ -151,6 +151,7 @@ def chooser_boundary(
     )
 
 
+
 def chooser_coeffs(
     A_call,
     B_call,
@@ -162,57 +163,153 @@ def chooser_coeffs(
     aprime,
     b,
     x_star,
+    Kc,
+    Kp,
 ):
     # Put region: [a, x_star]
     Ic_put = build_Ic(
-        omega,
-        nu,
-        a,
-        aprime,
-        b,
-        a,
-        x_star,
+        omega, nu, a, aprime, b, a, x_star,
     )
 
     Is_put = build_Is(
-        omega,
-        nu,
-        a,
-        aprime,
-        b,
-        a,
-        x_star,
+        omega, nu, a, aprime, b, a, x_star,
     )
 
-    H_put = (
-        A_put @ Ic_put
-        - B_put @ Is_put
+    H_put = Kp * (
+      A_put @ Ic_put
+        -B_put @ Is_put
     )
 
     # Call region: [x_star, b]
     Ic_call = build_Ic(
-        omega,
-        nu,
-        a,
-        aprime,
-        b,
-        x_star,
-        b,
+        omega, nu, a, aprime, b, x_star, b,
     )
 
     Is_call = build_Is(
-        omega,
-        nu,
-        a,
-        aprime,
-        b,
-        x_star,
-        b,
+        omega, nu, a, aprime, b, x_star, b,
     )
 
-    H_call = (
+    H_call = Kc * (
         A_call @ Ic_call
         - B_call @ Is_call
     )
 
     return H_put + H_call
+
+
+def cos_chooser_price(
+    phi,
+    cumulants,
+    S0,
+    Kc,
+    Kp,
+    r,
+    tc,
+    T,
+    N=256,
+    L=10,
+    M=5000,
+):
+    """
+    Numerical COS chooser pricer.
+
+    Choice at tc between:
+        Call(Kc, T)
+        Put(Kp, T)
+
+    Uses numerical midpoint integration for the
+    chooser payoff coefficients.
+    """
+
+    tau = T - tc
+
+    # --------------------------------------------------
+    # 1. Truncation interval at choice time
+    # --------------------------------------------------
+
+    x0 = np.log(S0 / Kc)
+
+    c1, c2, c4 = cumulants(tc)
+
+    a, b = truncation_interval(
+        x0 + c1, c2, c4, L
+    )
+
+    # --------------------------------------------------
+    # 2. Numerical integration grid
+    # --------------------------------------------------
+
+    dx = (b - a) / M
+
+    x = a + (np.arange(M) + 0.5) * dx
+
+    S = Kc * np.exp(x)
+
+    # --------------------------------------------------
+    # 3. Continuation call and put values
+    # --------------------------------------------------
+
+    payoff = np.empty(M)
+
+    for j in range(M):
+
+        call = cos_call_price(
+            phi=phi,
+            cumulants=cumulants,
+            S0=S[j],
+            K=Kc,
+            r=r,
+            tau=tau,
+            N=N,
+            L=L,
+        )
+
+        put = cos_put_price(
+            phi=phi,
+            cumulants=cumulants,
+            S0=S[j],
+            K=Kp,
+            r=r,
+            tau=tau,
+            N=N,
+            L=L,
+        )
+
+        payoff[j] = max(call, put)
+
+    # --------------------------------------------------
+    # 4. Numerical COS payoff coefficients
+    # --------------------------------------------------
+
+    k = np.arange(N)
+
+    u = k * np.pi / (b - a)
+
+    cos_matrix = np.cos(
+        np.outer(u, x - a)
+    )
+
+    Hk = (
+        2.0 / (b - a)
+        * dx
+        * (cos_matrix @ payoff)
+    )
+
+    # --------------------------------------------------
+    # 5. COS expectation
+    # --------------------------------------------------
+
+    phi_values = phi(u, tc)
+
+    weights = np.ones(N)
+    weights[0] = 0.5
+
+    price = np.exp(-r * tc) * np.sum(
+        weights
+        * Hk
+        * np.real(
+            phi_values * np.exp(1j * u * (x0 - a))
+        )
+    )
+
+    return price

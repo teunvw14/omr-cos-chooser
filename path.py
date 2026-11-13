@@ -1,5 +1,45 @@
 import numpy as np
 
+def gbm_values(
+    S0,
+    r,
+    sigma,
+    times: list,
+    n_paths,
+    q=0.0,
+    rng=None
+):
+    if rng is None:
+        rng = np.random.default_rng()
+
+    mu = r - q - 0.5 * sigma**2
+
+    times = np.asarray(times)
+
+    values = np.empty((n_paths, len(times)))
+
+    X = np.zeros(n_paths)
+
+    previous_time = 0.0
+
+    for j, t in enumerate(times):
+
+        dt = t - previous_time
+
+        Z = rng.standard_normal(n_paths)
+
+        X += (
+            mu * dt
+            + sigma * np.sqrt(dt) * Z
+        )
+
+        values[:, j] = S0 * np.exp(X)
+
+        previous_time = t
+
+    return values
+
+
 def merton_values(
     S0,
     r,
