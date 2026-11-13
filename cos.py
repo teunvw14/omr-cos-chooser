@@ -1,5 +1,6 @@
 import numpy as np
-import cf
+from scipy.optimize import brentq
+from integrals import build_Ic, build_Is
 
 def chi_psi(a, b, c, d, k):
     omega = k * np.pi / (b - a)
@@ -37,6 +38,15 @@ def put_coeffs(a, b, k):
 
     return H_k
 
+def call_coeffs(a, b, k):
+    c = 0.0
+    d = b
+
+    chi, psi = chi_psi(a, b, c, d, k,)
+    H_k = (2.0 / (b - a) * (chi - psi)    )
+
+    return H_k
+
 def cos_value(phi, x, r, tau, a, b, Hk):
     k = np.arange(len(Hk))
     u = k * np.pi / (b - a)
@@ -58,7 +68,7 @@ def cos_put_price(phi, cumulants, S0, K, r, tau, N, L):
 
     c1, c2, c4 = cumulants(tau)
 
-    a, b = truncation_interval(c1, c2, c4, L)
+    a, b = truncation_interval(x0+c1, c2, c4, L)
 
     k = np.arange(N)
 
@@ -68,9 +78,141 @@ def cos_put_price(phi, cumulants, S0, K, r, tau, N, L):
     
     return put
 
+
 def cos_call_price(phi, cumulants, S0, K, r, tau, N, L):
     put = cos_put_price(phi=phi, cumulants=cumulants, S0=S0, K=K, r=r, tau=tau, N=N, L=L)
 
     call = put + S0 - K * np.exp(-r * tau)
 
     return call
+
+def chooser_boundary(
+    phi,
+    cumulants,
+    r,
+    tau,
+    N,
+    L,
+    Kc,
+    Kp,
+    xmin=None,
+    xmax=None,
+):
+
+    if xmin is None:
+        xmin = np.log(min(Kc, Kp)) - 5.0
+
+    if xmax is None:
+        xmax = np.log(max(Kc, Kp)) + 5.0
+
+    def f(x):
+        S = np.exp(x)
+
+        call_value = cos_call_price(
+            phi=phi,
+            cumulants=cumulants,
+            S0=S,
+            K=Kc,
+            r=r,
+            tau=tau,
+            N=N,
+            L=L,
+        )
+
+        put_value = cos_put_price(
+            phi=phi,
+            cumulants=cumulants,
+            S0=S,
+            K=Kp,
+            r=r,
+            tau=tau,
+            N=N,
+            L=L,
+        )
+
+        return call_value - put_value
+
+    f_left = f(xmin)
+    f_right = f(xmax)
+
+    if f_left * f_right > 0.0:
+        raise ValueError(
+            "Could not bracket the chooser boundary: "
+            f"f(xmin)={f_left:.6e}, "
+            f"f(xmax)={f_right:.6e}."
+        )
+
+    return brentq(
+        f,
+        xmin,
+        xmax,
+        xtol=1e-12,
+        rtol=1e-12,
+    )
+
+
+def chooser_coeffs(
+    A_call,
+    B_call,
+    A_put,
+    B_put,
+    omega,
+    nu,
+    a,
+    aprime,
+    b,
+    x_star,
+):
+    # Put region: [a, x_star]
+    Ic_put = build_Ic(
+        omega,
+        nu,
+        a,
+        aprime,
+        b,
+        a,
+        x_star,
+    )
+
+    Is_put = build_Is(
+        omega,
+        nu,
+        a,
+        aprime,
+        b,
+        a,
+        x_star,
+    )
+
+    H_put = (
+        A_put @ Ic_put
+        - B_put @ Is_put
+    )
+
+    # Call region: [x_star, b]
+    Ic_call = build_Ic(
+        omega,
+        nu,
+        a,
+        aprime,
+        b,
+        x_star,
+        b,
+    )
+
+    Is_call = build_Is(
+        omega,
+        nu,
+        a,
+        aprime,
+        b,
+        x_star,
+        b,
+    )
+
+    H_call = (
+        A_call @ Ic_call
+        - B_call @ Is_call
+    )
+
+    return H_put + H_call

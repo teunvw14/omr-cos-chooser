@@ -1,90 +1,247 @@
-import sympy as sp
+import numpy as np
 
-# symbols
-x = sp.symbols("x", real=True)
+def frequencies(N, a, b):
+    k = np.arange(N)
+    return k * np.pi / (b - a)
 
-a1, a2 = sp.symbols("a1 a2", real=True)
-b = sp.symbols("b", real=True)
-x_star = sp.symbols("x_star", real=True)
+def build_Io(
+    nu,
+    a,
+    b,
+    lower,
+    upper
+):
+    Io = np.empty_like(nu)
 
-omega_k = sp.symbols("omega_k", real=True)
-omega_n = sp.symbols("omega_n", real=True)
-
-#
-# Io
-#
-
-Io = (
-    2 / (b - a1)
-    * sp.integrate(
-        sp.cos(
-            omega_n * (x - a1)
-        ),
-        (x, x_star, b),
+    Io[0] = (
+        2.0
+        * (upper - lower)
+        / (b - a)
     )
-)
 
-Io = sp.simplify(Io)
-
-#
-# Ic
-#
-
-Ic = (
-    2 / (b - a1)
-    * sp.integrate(
-        sp.cos(
-            omega_k * (x - a2)
+    if len(nu) > 1:
+        Io[1:] = (
+            2.0
+            / (b - a)
+            * (
+                np.sin(
+                    nu[1:] * (upper - a)
+                )
+                -
+                np.sin(
+                    nu[1:] * (lower - a)
+                )
+            )
+            / nu[1:]
         )
-        * sp.cos(
-            omega_n * (x - a1)
-        ),
-        (x, x_star, b),
+
+    return Io
+
+def build_Ic(
+    omega,
+    nu,
+    a,
+    aprime,
+    b,
+    lower,
+    upper,
+    tol=1e-12,
+):
+
+    wk = omega[:, None]
+    vn = nu[None, :]
+
+    Ic = np.zeros(
+        (len(omega), len(nu))
     )
-)
 
-Ic = sp.trigsimp(
-    sp.simplify(Ic)
-)
+    #
+    # Generic case
+    #
+    mask_general = (
+        np.abs(wk - vn) > tol
+    )
 
-#
-# Is
-#
-
-Is = (
-    2 / (b - a1)
-    * sp.integrate(
-        sp.sin(
-            omega_k * (x - a2)
+    term1 = (
+        np.sin(
+            (wk - vn) * upper
+            - (wk * aprime - vn * a)
         )
-        * sp.cos(
-            omega_n * (x - a1)
-        ),
-        (x, x_star, b),
+        -
+        np.sin(
+            (wk - vn) * lower
+            - (wk * aprime - vn * a)
+        )
+    ) / (wk - vn)
+
+    term2 = (
+        np.sin(
+            (wk + vn) * upper
+            - (wk * aprime + vn * a)
+        )
+        -
+        np.sin(
+            (wk + vn) * lower
+            - (wk * aprime + vn * a)
+        )
+    ) / (wk + vn)
+
+    Ic[mask_general] = (
+        (term1 + term2)
+        / (b - a)
+    )[mask_general]
+
+    
+    # Singular case 
+    mask_singular = (
+        np.abs(wk - vn) <= tol
     )
-)
 
-Is = sp.trigsimp(
-    sp.simplify(Is)
-)
+    rows, cols = np.where(mask_singular)
 
-print("\nIo:\n")
-sp.pprint(Io)
+    for k, n in zip(rows, cols):
 
-print("\nIc:\n")
-sp.pprint(Ic)
+        omega_kn = omega[k]
 
-print("\nIs:\n")
-sp.pprint(Is)
-print("\n")
-print(sp.pycode(Io))
-print("\n")
-print(sp.pycode(Ic))
-print("\n")
-print(sp.pycode(Is))
-print("\n")
-print(sp.latex(Io))
-print("\n")
-print(sp.latex(Ic))
-print("\n")
-print(sp.latex(Is))
+        if abs(omega_kn) < tol:
+
+            Ic[k, n] = (
+                2.0
+                * (upper - lower)
+                / (b - a)
+            )
+
+        else:
+            term1 = (
+                0.5
+                * (upper - lower)
+                * np.cos(
+                    omega_kn
+                    * (a - aprime)
+                )
+            )
+
+            term2 = (
+                np.sin(
+                    2.0 * omega_kn * upper
+                    - omega_kn * (a + aprime)
+                )
+                -
+                np.sin(
+                    2.0 * omega_kn * lower
+                    - omega_kn * (a + aprime)
+                )
+            ) / (
+                4.0 * omega_kn
+            )
+
+            Ic[k, n] = (
+                2.0
+                / (b - a)
+                * (term1 + term2)
+            )
+
+    return Ic
+
+def build_Is(
+    omega,
+    nu,
+    a,
+    aprime,
+    b,
+    lower,
+    upper,
+    tol=1e-12,
+):
+    wk = omega[:, None]
+    vn = nu[None, :]
+
+    Is = np.zeros(
+        (len(omega), len(nu))
+    )
+
+    # Generic case
+    mask_general = (
+        np.abs(wk - vn) > tol
+    )
+
+    plus = (
+        np.cos(
+            (wk + vn) * upper
+            - (wk * aprime + vn * a)
+        )
+        -
+        np.cos(
+            (wk + vn) * lower
+            - (wk * aprime + vn * a)
+        )
+    ) / (wk + vn)
+
+    minus = (
+        np.cos(
+            (wk - vn) * upper
+            - (wk * aprime - vn * a)
+        )
+        -
+        np.cos(
+            (wk - vn) * lower
+            - (wk * aprime - vn * a)
+        )
+    ) / (wk - vn)
+
+    Is[mask_general] = (
+        -(plus + minus)
+        / (b - a)
+    )[mask_general]
+
+    # Singular case
+    mask_singular = (
+        np.abs(wk - vn) <= tol
+    )
+
+    rows, cols = np.where(mask_singular)
+
+    for k, n in zip(rows, cols):
+
+        w = omega[k]
+
+        # Singular case: ω = ν = 0
+        if abs(w) < tol:
+
+            Is[k, n] = 0.0
+
+        # Singular case: ω = ν not 0
+        else:
+
+            boundary = (
+                0.5
+                * (upper - lower)
+                * np.sin(
+                    w * (a - aprime)
+                )
+            )
+
+            oscillatory = (
+                np.cos(
+                    2.0 * w * upper
+                    - w * (a + aprime)
+                )
+                -
+                np.cos(
+                    2.0 * w * lower
+                    - w * (a + aprime)
+                )
+            ) / (
+                4.0 * w
+            )
+
+            Is[k, n] = (
+                2.0
+                / (b - a)
+                * (
+                    boundary
+                    - oscillatory
+                )
+            )
+
+    return Is

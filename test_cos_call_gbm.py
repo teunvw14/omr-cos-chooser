@@ -115,7 +115,7 @@ plt.semilogy(N_values, errors, marker="o")
 
 plt.xlabel("N")
 plt.ylabel("Absolute Error")
-plt.title("COS Convergence under GBM against Analytical Black-Scholes")
+plt.title("COS call prices under GBM against analytical Black-Scholes")
 
 plt.grid(True, which="both")
 

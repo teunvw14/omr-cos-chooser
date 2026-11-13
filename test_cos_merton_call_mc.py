@@ -19,7 +19,7 @@ sigmaJ = 0.25
 N = 256
 L = 10
 
-n_paths = 2_000_000
+n_paths = 10_000_000
 
 
 phi, cumulants = cf.merton(
@@ -116,7 +116,7 @@ plt.axhline(
 
 plt.xlabel("Number of COS Terms (N)")
 plt.ylabel("Call Price")
-plt.title(f"Merton Call: COS vs Monte Carlo (n_paths={n_paths:,})")
+plt.title(f"COS call under Merton vs Monte Carlo (n_paths={n_paths:,})")
 plt.grid(True)
 plt.legend()
 
