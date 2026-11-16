@@ -1,9 +1,6 @@
 import cf
 
-from cos import (
-    chooser_analytic,
-    cos_chooser_numerical,
-)
+from cos import cos_chooser_analytic, cos_chooser_numerical
 
 S0 = 100.0
 
@@ -21,7 +18,7 @@ phi, cumulants = cf.gbm(
     sigma=sigma,
 )
 
-analytic = chooser_analytic(
+analytic = cos_chooser_analytic(
     phi=phi,
     cumulants=cumulants,
     S0=S0,
