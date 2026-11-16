@@ -58,7 +58,7 @@ def price_single_date(
     values_func,
     S0,
     r,
-    T,
+    tau,
     tc,
     Kc,
     Kp,
@@ -73,8 +73,8 @@ def price_single_date(
 
     At tc the holder chooses between:
 
-        Call(Kc, T)
-        Put(Kp, T)
+        Call(Kc, tau)
+        Put(Kp, tau)
 
     Returns
     -------
@@ -83,9 +83,9 @@ def price_single_date(
     ci95
     """
 
-    if not (0.0 <= tc <= T):
+    if not (0.0 <= tc <= tau):
         raise ValueError(
-            "Require 0 <= tc <= T."
+            "Require 0 <= tc <= tau."
         )
 
     if seed is not None:
@@ -105,30 +105,27 @@ def price_single_date(
 
     chooser_values = np.empty(n_outer)
 
-    disc_tc_T = np.exp(-r * (T - tc))
+    disc_tc_tau = np.exp(-r * (tau - tc))
     disc_0_tc = np.exp(-r * tc)
 
     for i, s_tc in enumerate(S_tc):
 
-        #
-        # Inner simulation tc -> T
-        #
-
+        # Inner simulation tc -> tau
         ST = values_func(
             S0=s_tc,
             r=r,
-            times=[T - tc],
+            times=[tau - tc],
             n_paths=n_inner,
             **params,
         )[:, -1]
 
         call_value = (
-            disc_tc_T
+            disc_tc_tau
             * np.mean(call(ST, Kc))
         )
 
         put_value = (
-            disc_tc_T
+            disc_tc_tau
             * np.mean(put(ST, Kp))
         )
 

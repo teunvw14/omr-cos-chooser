@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def inner_coeffs(
     phi,
     r,
@@ -41,13 +40,7 @@ def inner_coeffs(
 
     return A, B
 
-def continuation_values(
-    x,
-    A,
-    B,
-    a,
-    b,
-):
+def continuation_values(x, A, B, a, b):
 
     x = np.atleast_1d(x)
 
@@ -81,7 +74,7 @@ def continuation_values(
         * sin_part
     )
 
-    #coeffs[:, 0] *= 0.5
+    # Halving of first coefficient is done in cos.py  
 
     values = np.sum(
         coeffs,

@@ -143,8 +143,6 @@ def build_Ic(
 
     return Ic
 
-
-
 def build_Is(
     omega,
     nu,
@@ -227,4 +225,3 @@ def build_Is(
             ) / (b - a)
 
     return Is
-

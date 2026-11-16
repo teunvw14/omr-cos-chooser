@@ -1,6 +1,6 @@
 
 import cf
-from cos import cos_chooser_price
+from cos import cos_chooser_analytic
 from mc import price_single_date
 from path import merton_values
 import numpy as np
@@ -13,7 +13,7 @@ Kp = 100.0
 r = 0.05
 
 tc = 0.5
-T = 1.0
+tau = 1.0
 
 sigma = 0.15
 xiP = 0.10
@@ -40,7 +40,7 @@ phi, cumulants = cf.merton(
 
 
 # COS
-cos_price = cos_chooser_price(
+cos_price = cos_chooser_analytic(
     phi=phi,
     cumulants=cumulants,
     S0=S0,
@@ -48,10 +48,10 @@ cos_price = cos_chooser_price(
     Kp=Kp,
     r=r,
     tc=tc,
-    T=T,
-    N=N,
+    tau=tau,
+    Nin=N,
+    Nout=N,
     L=L,
-    M=M,
 )
 
 
@@ -60,7 +60,7 @@ mc_price, se, ci95 = price_single_date(
     values_func=merton_values,
     S0=S0,
     r=r,
-    T=T,
+    tau=tau,
     tc=tc,
     Kc=Kc,
     Kp=Kp,
@@ -89,7 +89,7 @@ prices = []
 
 for N in N_values:
 
-    price = cos_chooser_price(
+    price = cos_chooser_analytic(
         phi=phi,
         cumulants=cumulants,
         S0=S0,
@@ -97,10 +97,10 @@ for N in N_values:
         Kp=Kp,
         r=r,
         tc=tc,
-        T=T,
-        N=N,
+        tau=tau,
+        Nin=N,
+        Nout=N,
         L=L,
-        M=M,
     )
 
     prices.append(price)

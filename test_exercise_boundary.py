@@ -78,8 +78,6 @@ put_value = cos_put_price(
     L=interval_size,
 )
 
-
-# Results
 print("CHOOSER BOUNDARY UNDER GBM")
 print()
 

@@ -31,7 +31,7 @@ def truncation_interval(c1, c2, c4, L):
 
     return a, b
 
-def put_coeffs(K,a, b, k):
+def put_coeffs(K,a, b, k): # Strike is passed to allow for Kc different from Kp 
     c = a
     d = np.clip(np.log(K), a, b)
     chi, psi = chi_psi(a, b, c, d, k)
@@ -81,7 +81,15 @@ def cos_put_price(phi, cumulants, S0, K, r, tau, N, L):
 
 
 def cos_call_price(phi, cumulants, S0, K, r, tau, N, L):
-    put = cos_put_price(phi=phi, cumulants=cumulants, S0=S0, K=K, r=r, tau=tau, N=N, L=L)
+    put = cos_put_price(
+        phi=phi,
+        cumulants=cumulants,
+        S0=S0,
+        K=K, 
+        r=r, 
+        tau=tau, 
+        N=N, 
+        L=L)
 
     call = put + S0 - K * np.exp(-r * tau)
 
@@ -143,13 +151,7 @@ def chooser_boundary(
             f"f(xmax)={f_right:.6e}."
         )
 
-    return brentq(
-        f,
-        xmin,
-        xmax,
-        xtol=1e-12,
-        rtol=1e-12,
-    )
+    return brentq(f, xmin, xmax, xtol=1e-12, rtol=1e-12)
 
 
 
@@ -189,11 +191,11 @@ def chooser_coeffs(
 
     return H_put + H_call
 
-def chooser_analytic(phi, cumulants, S0, Kc, Kp, r, t1, T, Nin, Nout, L=10):
-    x0, tau = np.log(S0), T - t1
+def cos_chooser_analytic(phi, cumulants, S0, Kc, Kp, r, tc, tau, Nin, Nout, L=10):
+    x0, tau = np.log(S0), tau - tc
 
     # intervals
-    c1, c2, c4 = cumulants(t1)
+    c1, c2, c4 = cumulants(tc)
     a, b = truncation_interval(x0 + c1, c2, c4, L)
     e1, e2, e4 = cumulants(tau)
     d = L*np.sqrt(e2 + np.sqrt(e4))
@@ -218,38 +220,13 @@ def chooser_analytic(phi, cumulants, S0, Kc, Kp, r, t1, T, Nin, Nout, L=10):
         )[0]
     )
 
-    print("Put at boundary candidate:")
-    print(
-    continuation_values(
-        np.array([np.log(Kc)]),
-        Ap,
-        Bp,
-        ap,
-        bp,
-    )[0]
-    )   
 
     # switching boundary: Vc - Vp is itself one trig polynomial
     D = lambda x: continuation_values(x, Ac-Ap, Bc-Bp, ap, bp)[0]
     xstar = brentq(D, ap, bp, xtol=1e-12, rtol=1e-12)
 
-    print()
-    print("BOUNDARY")
-    print("xstar =", xstar)
-    print("Sstar =", np.exp(xstar))
 
-    print()
-    print("INTERVALS")
-    print("a,b   =", a, b)
-    print("ap,bp =", ap, bp)
-
-    print()
-    print("ROOT CHECK")
-    print("D(ap) =", D(ap))
-    print("D(bp) =", D(bp))
-    print("D(x*) =", D(xstar))
-
-    # outer coefficients: put on [a,x*], call on [x*,b]; no K factors
+    # outer coefficients: put on [a,x*], call on [x*,b]
     omega = np.arange(Nin)*np.pi/(bp-ap)
     nu    = np.arange(Nout)*np.pi/(b-a)
     H = (Ap @ build_Ic(omega, nu, a, ap, b, a, xstar)
@@ -258,10 +235,10 @@ def chooser_analytic(phi, cumulants, S0, Kc, Kp, r, t1, T, Nin, Nout, L=10):
        - Bc @ build_Is(omega, nu, a, ap, b, xstar, b))
 
     w = np.ones(Nout); w[0] = 0.5
-    return np.exp(-r*t1) * np.sum(w * H * np.real(phi(nu, t1)*np.exp(1j*nu*(x0-a))))
+    return np.exp(-r*tc) * np.sum(w * H * np.real(phi(nu, tc)*np.exp(1j*nu*(x0-a))))
 
 
-def cos_chooser_price(
+def cos_chooser_numerical(
     phi,
     cumulants,
     S0,
@@ -269,7 +246,7 @@ def cos_chooser_price(
     Kp,
     r,
     tc,
-    T,
+    tau,
     N=256,
     L=10,
     M=5000,
@@ -285,34 +262,24 @@ def cos_chooser_price(
     chooser payoff coefficients.
     """
 
-    tau = T - tc
-
-    # --------------------------------------------------
-    # 1. Truncation interval at choice time
-    # --------------------------------------------------
-
+    tau = tau - tc
+   
+    # Truncation interval at choice time
+  
     x0 = np.log(S0)
 
     c1, c2, c4 = cumulants(tc)
 
-    a, b = truncation_interval(
-        x0 + c1, c2, c4, L
-    )
+    a, b = truncation_interval(x0 + c1, c2, c4, L)
 
-    # --------------------------------------------------
-    # 2. Numerical integration grid
-    # --------------------------------------------------
-
+    # Numerical integration grid
     dx = (b - a) / M
 
     x = a + (np.arange(M) + 0.5) * dx
 
     S = np.exp(x)
-
-    # --------------------------------------------------
-    # 3. Continuation call and put values
-    # --------------------------------------------------
-
+    # Continuation call and put values
+  
     payoff = np.empty(M)
 
     for j in range(M):
@@ -341,9 +308,7 @@ def cos_chooser_price(
 
         payoff[j] = max(call, put)
 
-    # --------------------------------------------------
-    # 4. Numerical COS payoff coefficients
-    # --------------------------------------------------
+    # Numerical COS payoff coefficients
 
     k = np.arange(N)
 
@@ -359,9 +324,7 @@ def cos_chooser_price(
         * (cos_matrix @ payoff)
     )
 
-    # --------------------------------------------------
-    # 5. COS expectation
-    # --------------------------------------------------
+    # COS expectation
 
     phi_values = phi(u, tc)
 

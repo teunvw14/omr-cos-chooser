@@ -1,7 +1,7 @@
 import numpy as np
 
 from cf import merton
-from cos import cos_simple_chooser_price
+from cos import cos_chooser_analytic
 
 from mc import price_single_date
 from path import merton_values
@@ -9,38 +9,26 @@ from path import merton_values
 
 def main():
 
-    #
     # Contract
-    #
-
     S0 = 100.0
     K = 100.0
 
     r = 0.05
-    T = 1.0
+    tau = 1.0
     tc = 0.5
 
-    #
     # Merton model
-    #
-
     sigma = 0.20
     xiP = 1.0
     muJ = -0.10
     sigmaJ = 0.20
 
-    #
     # COS parameters
-    #
-
-    N = 2**10
+    N = 2**7
     L = 10.0
 
-    #
     # Characteristic function
-    #
-
-    phi = merton(
+    phi, cumulants = merton(
         r=r,
         sigma=sigma,
         xiP=xiP,
@@ -48,34 +36,32 @@ def main():
         sigmaJ=sigmaJ,
     )
 
-    #
     # COS price
-    #
-
-    price_cos = cos_simple_chooser_price(
+    price_cos = cos_chooser_analytic(
         phi=phi,
+        cumulants=cumulants,
         S0=S0,
-        K=K,
+        Kc=K,
+        Kp=K,
         r=r,
-        tau=T,
         tc=tc,
-        N=N,
+        tau=tau,
+        Nin=N,
+        Nout=N,
         L=L,
     )
 
-    #
     # Monte Carlo price
-    #
 
     price_mc, stderr, ci95 = price_single_date(
         values_func=merton_values,
         S0=S0,
         r=r,
-        T=T,
+        tau=tau,
         tc=tc,
         Kc=K,
         Kp=K,
-        n_outer=10000,
+        n_outer=20000,
         n_inner=100,
         seed=12345,
         sigma=sigma,
@@ -84,9 +70,7 @@ def main():
         sigmaJ=sigmaJ,
     )
 
-    #
     # Output
-    #
 
     print()
     print("CHOOSER VALIDATION")
