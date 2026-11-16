@@ -1,4 +1,11 @@
 import numpy as np
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message="invalid value encountered in divide",
+    category=RuntimeWarning,
+)
 
 def frequencies(N, a, b):
     k = np.arange(N)

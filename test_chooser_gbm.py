@@ -10,18 +10,14 @@ import matplotlib.pyplot as plt
 S0 = 100.0
 Kc = 100.0
 Kp = 100.0
-r = 0.05
 
 tc = 0.5
 tau = 1.0
 
+r = 0.05
+q = 0.0
 sigma = 0.20
 
-# No jumps: standard GBM
-xiP = 0.0
-muJ = 0.0
-sigmaJ = 0.0
-q = 0.0
 
 N = 256
 L = 10

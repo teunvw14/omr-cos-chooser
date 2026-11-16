@@ -463,23 +463,9 @@ def cos_chooser_analytic(phi, cumulants, S0, Kc, Kp, r, tc, tau, Nin, Nout, L=10
     Ac, Bc = inner_coeffs(phi, r, tau, ap, bp, Hc)
     Ap, Bp = inner_coeffs(phi, r, tau, ap, bp, Hp)
 
-    print()
-    print("Call at boundary candidate:")
-    print(
-       continuation_values(
-            np.array([np.log(Kc)]),
-            Ac,
-            Bc,
-            ap,
-            bp,
-        )[0]
-    )
-
-
     # switching boundary: Vc - Vp is itself one trig polynomial
     D = lambda x: continuation_values(x, Ac-Ap, Bc-Bp, ap, bp)[0]
     xstar = brentq(D, ap, bp, xtol=1e-12, rtol=1e-12)
-
 
     # outer coefficients: put on [a,x*], call on [x*,b]
     omega = np.arange(Nin)*np.pi/(bp-ap)
