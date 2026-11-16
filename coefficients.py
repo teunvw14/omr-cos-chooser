@@ -81,7 +81,7 @@ def continuation_values(
         * sin_part
     )
 
-    coeffs[:, 0] *= 0.5
+    #coeffs[:, 0] *= 0.5
 
     values = np.sum(
         coeffs,

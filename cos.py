@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import brentq
 from integrals import build_Ic, build_Is
+from coefficients import inner_coeffs, continuation_values
 
 def chi_psi(a, b, c, d, k):
     omega = k * np.pi / (b - a)
@@ -30,20 +31,20 @@ def truncation_interval(c1, c2, c4, L):
 
     return a, b
 
-def put_coeffs(a, b, k):
+def put_coeffs(K,a, b, k):
     c = a
-    d = 0.0
+    d = np.clip(np.log(K), a, b)
     chi, psi = chi_psi(a, b, c, d, k)
-    H_k = 2.0 / (b - a) * (psi - chi)
+    H_k = 2.0 / (b - a) * (K*psi - chi)
 
     return H_k
 
-def call_coeffs(a, b, k):
-    c = 0.0
+def call_coeffs(K,a, b, k):
+    c = np.clip(np.log(K), a, b)
     d = b
 
     chi, psi = chi_psi(a, b, c, d, k,)
-    H_k = (2.0 / (b - a) * (chi - psi)    )
+    H_k = (2.0 / (b - a) * (chi - K*psi)    )
 
     return H_k
 
@@ -64,7 +65,7 @@ def cos_value(phi, x, r, tau, a, b, Hk):
     )
 
 def cos_put_price(phi, cumulants, S0, K, r, tau, N, L):
-    x0 = np.log(S0 / K)
+    x0 = np.log(S0)
 
     c1, c2, c4 = cumulants(tau)
 
@@ -72,9 +73,9 @@ def cos_put_price(phi, cumulants, S0, K, r, tau, N, L):
 
     k = np.arange(N)
 
-    Hk = put_coeffs(a, b, k)
+    Hk = put_coeffs(K,a, b, k)
 
-    put = K * cos_value(phi=phi, x=x0, r=r, tau=tau, a=a, b=b, Hk=Hk)
+    put = cos_value(phi=phi, x=x0, r=r, tau=tau, a=a, b=b, Hk=Hk)
     
     return put
 
@@ -163,8 +164,6 @@ def chooser_coeffs(
     aprime,
     b,
     x_star,
-    Kc,
-    Kp,
 ):
     # Put region: [a, x_star]
     Ic_put = build_Ic(
@@ -175,10 +174,7 @@ def chooser_coeffs(
         omega, nu, a, aprime, b, a, x_star,
     )
 
-    H_put = Kp * (
-      A_put @ Ic_put
-        -B_put @ Is_put
-    )
+    H_put = (A_put @ Ic_put - B_put @ Is_put)
 
     # Call region: [x_star, b]
     Ic_call = build_Ic(
@@ -189,12 +185,80 @@ def chooser_coeffs(
         omega, nu, a, aprime, b, x_star, b,
     )
 
-    H_call = Kc * (
-        A_call @ Ic_call
-        - B_call @ Is_call
-    )
+    H_call = (A_call @ Ic_call - B_call @ Is_call)
 
     return H_put + H_call
+
+def chooser_analytic(phi, cumulants, S0, Kc, Kp, r, t1, T, Nin, Nout, L=10):
+    x0, tau = np.log(S0), T - t1
+
+    # intervals
+    c1, c2, c4 = cumulants(t1)
+    a, b = truncation_interval(x0 + c1, c2, c4, L)
+    e1, e2, e4 = cumulants(tau)
+    d = L*np.sqrt(e2 + np.sqrt(e4))
+    ap, bp = a + e1 - d, b + e1 + d
+
+    # inner expansions: same interval, so same omega for call and put
+    k  = np.arange(Nin)
+    Hc = call_coeffs(Kc, ap, bp, k); Hc[0] *= 0.5
+    Hp = put_coeffs(Kp, ap, bp, k); Hp[0] *= 0.5
+    Ac, Bc = inner_coeffs(phi, r, tau, ap, bp, Hc)
+    Ap, Bp = inner_coeffs(phi, r, tau, ap, bp, Hp)
+
+    print()
+    print("Call at boundary candidate:")
+    print(
+       continuation_values(
+            np.array([np.log(Kc)]),
+            Ac,
+            Bc,
+            ap,
+            bp,
+        )[0]
+    )
+
+    print("Put at boundary candidate:")
+    print(
+    continuation_values(
+        np.array([np.log(Kc)]),
+        Ap,
+        Bp,
+        ap,
+        bp,
+    )[0]
+    )   
+
+    # switching boundary: Vc - Vp is itself one trig polynomial
+    D = lambda x: continuation_values(x, Ac-Ap, Bc-Bp, ap, bp)[0]
+    xstar = brentq(D, ap, bp, xtol=1e-12, rtol=1e-12)
+
+    print()
+    print("BOUNDARY")
+    print("xstar =", xstar)
+    print("Sstar =", np.exp(xstar))
+
+    print()
+    print("INTERVALS")
+    print("a,b   =", a, b)
+    print("ap,bp =", ap, bp)
+
+    print()
+    print("ROOT CHECK")
+    print("D(ap) =", D(ap))
+    print("D(bp) =", D(bp))
+    print("D(x*) =", D(xstar))
+
+    # outer coefficients: put on [a,x*], call on [x*,b]; no K factors
+    omega = np.arange(Nin)*np.pi/(bp-ap)
+    nu    = np.arange(Nout)*np.pi/(b-a)
+    H = (Ap @ build_Ic(omega, nu, a, ap, b, a, xstar)
+       - Bp @ build_Is(omega, nu, a, ap, b, a, xstar)
+       + Ac @ build_Ic(omega, nu, a, ap, b, xstar, b)
+       - Bc @ build_Is(omega, nu, a, ap, b, xstar, b))
+
+    w = np.ones(Nout); w[0] = 0.5
+    return np.exp(-r*t1) * np.sum(w * H * np.real(phi(nu, t1)*np.exp(1j*nu*(x0-a))))
 
 
 def cos_chooser_price(
@@ -227,7 +291,7 @@ def cos_chooser_price(
     # 1. Truncation interval at choice time
     # --------------------------------------------------
 
-    x0 = np.log(S0 / Kc)
+    x0 = np.log(S0)
 
     c1, c2, c4 = cumulants(tc)
 
@@ -243,7 +307,7 @@ def cos_chooser_price(
 
     x = a + (np.arange(M) + 0.5) * dx
 
-    S = Kc * np.exp(x)
+    S = np.exp(x)
 
     # --------------------------------------------------
     # 3. Continuation call and put values
